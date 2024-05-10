@@ -149,6 +149,7 @@ public class Chip_8_Emulator implements Emulator {
             case ZERO_INSTRUCTION:
                 if (instruction == CLEAR_DISPLAY) {
                     throw new UnsupportedOperationException("DISPLAY NOT IMPLEMENTED");
+                    //resetDisplay();
                 } else if (instruction == RETURN) {
                     PC = stack[SP];
                     SP--;

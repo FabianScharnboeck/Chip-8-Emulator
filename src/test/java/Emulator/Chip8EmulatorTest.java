@@ -28,7 +28,7 @@ class Chip8EmulatorTest {
             // Stack
             Field stackField = cpu.getClass().getDeclaredField("stack");
             stackField.setAccessible(true);
-            short[] stack = (short[]) stackField.get(cpu);
+            int[] stack = (int[]) stackField.get(cpu);
             assertThat(stack).hasLength(16);
 
             // Keyboard
@@ -58,7 +58,7 @@ class Chip8EmulatorTest {
             // PC
             Field pcField = cpu.getClass().getDeclaredField("PC");
             pcField.setAccessible(true);
-            short pc = (short) pcField.get(cpu);
+            int pc = (int) pcField.get(cpu);
             assertThat(pc).isEqualTo((short) 0x200);
 
         } catch (IllegalAccessException | NoSuchFieldException e) {
@@ -75,8 +75,8 @@ class Chip8EmulatorTest {
         try {
             Field pcField = cpu.getClass().getDeclaredField("PC");
             pcField.setAccessible(true);
-            short pc = (short) pcField.get(cpu);
-            assertThat(pc).isEqualTo((short) 0xFFF);
+            int pc = (int) pcField.get(cpu);
+            assertThat(pc).isEqualTo(0xFFF);
         } catch (IllegalAccessException | NoSuchFieldException e) {
             throw new RuntimeException(e);
         }
@@ -91,8 +91,8 @@ class Chip8EmulatorTest {
         try {
             Field pcField = cpu.getClass().getDeclaredField("PC");
             pcField.setAccessible(true);
-            short pc = (short) pcField.get(cpu);
-            assertThat(pc).isEqualTo((short) 0xA12);
+            int pc = (int) pcField.get(cpu);
+            assertThat(pc).isEqualTo(0xA12);
         } catch (IllegalAccessException | NoSuchFieldException e) {
             throw new RuntimeException(e);
         }
@@ -107,8 +107,8 @@ class Chip8EmulatorTest {
         try {
             Field pcField = cpu.getClass().getDeclaredField("PC");
             pcField.setAccessible(true);
-            short pc = (short) pcField.get(cpu);
-            assertThat(pc).isEqualTo((short) 0x111);
+            int pc =  (int) pcField.get(cpu);
+            assertThat(pc).isEqualTo(0x111);
         } catch (IllegalAccessException | NoSuchFieldException e) {
             throw new RuntimeException(e);
         }
