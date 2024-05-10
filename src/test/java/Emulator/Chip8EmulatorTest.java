@@ -8,11 +8,11 @@ import static com.google.common.truth.Truth.assertThat;
 
 class Chip8EmulatorTest {
 
-    private Chip_8_Emulator cpu;
+    private Chip8Emulator cpu;
 
     @BeforeEach
     void setUp() {
-        cpu = new Chip_8_Emulator();
+        cpu = new Chip8Emulator();
     }
 
     @Test

@@ -5,7 +5,7 @@ import java.util.Arrays;
 /**
  * <a href="http://devernay.free.fr/hacks/chip8/C8TECH10.HTM#memmap">Link to Documentation</a>
  */
-public class Chip_8_Emulator implements Emulator {
+public class Chip8Emulator implements Emulator {
 
     // The Chip-8 language is capable of accessing up to 4KB (4,096 bytes) of RAM, from location 0x000 (0)
     // to 0xFFF (4095). The first 512 bytes, from 0x000 to 0x1FF,
@@ -90,7 +90,7 @@ public class Chip_8_Emulator implements Emulator {
     private static final short SKIP_IF_KEY_PRESSED = 0xE;
     private static final short ALL_F_INSTRUCTIONS = 0xF;
 
-    public Chip_8_Emulator() {
+    public Chip8Emulator() {
         this.stack = new int[0x10];
         this.memory = new int[FOUR_KB];
         this.display = new short[DISPLAY_SIZE];

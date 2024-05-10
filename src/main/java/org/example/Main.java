@@ -1,10 +1,10 @@
 package org.example;
 
-import Emulator.Chip_8_Emulator;
+import Emulator.Chip8Emulator;
 
 public class Main {
     public static void main(String[] args) {
-        Chip_8_Emulator cpu = new Chip_8_Emulator();
+        Chip8Emulator cpu = new Chip8Emulator();
         int[] mem = new int[4096];
         mem[0x200] = 0x801E;
         cpu.setMemory(mem);
