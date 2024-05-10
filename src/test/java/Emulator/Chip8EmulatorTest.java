@@ -114,4 +114,137 @@ class Chip8EmulatorTest {
         }
     }
 
+    @Test
+    void testDisplayZeroAtThreeThree() {
+        int[] memory = new int[4096];
+        memory[0x200] = 0xD014;
+        setRegister((short) 0, (short) 3);
+        setRegister((short) 1, (short) 3);
+        setIRegister((short) 0b11100000);
+
+        memory[0b11100000] = 0b11110000;
+        memory[0b11100001] = 0b10010000;
+        memory[0b11100010] = 0b10010000;
+        memory[0b11100011] = 0b11110000;
+
+
+
+        cpu.setMemory(memory);
+        cpu.executeCycle();
+        try {
+            Field displayField = cpu.getClass().getDeclaredField("display");
+            displayField.setAccessible(true);
+            short[] display = (short[]) displayField.get(cpu);
+
+
+            // This represents a zero beginning from the coordinates 3,3
+
+            // Looking like that:
+            // ****
+            // *  *
+            // *  *
+            // ****
+            assertThat(display[3 + 3 * 64]).isEqualTo((short) 1);
+            assertThat(display[4 + 3 * 64]).isEqualTo((short) 1);
+            assertThat(display[5 + 3 * 64]).isEqualTo((short) 1);
+            assertThat(display[6 + 3 * 64]).isEqualTo((short) 1);
+
+            assertThat(display[3 + 4 * 64]).isEqualTo((short) 1);
+            assertThat(display[4 + 4 * 64]).isEqualTo((short) 0);
+            assertThat(display[5 + 4 * 64]).isEqualTo((short) 0);
+            assertThat(display[6 + 4 * 64]).isEqualTo((short) 1);
+
+            assertThat(display[3 + 5 * 64]).isEqualTo((short) 1);
+            assertThat(display[4 + 5 * 64]).isEqualTo((short) 0);
+            assertThat(display[5 + 5 * 64]).isEqualTo((short) 0);
+            assertThat(display[6 + 5 * 64]).isEqualTo((short) 1);
+
+            assertThat(display[3 + 6 * 64]).isEqualTo((short) 1);
+            assertThat(display[4 + 6 * 64]).isEqualTo((short) 1);
+            assertThat(display[5 + 6 * 64]).isEqualTo((short) 1);
+            assertThat(display[6 + 6 * 64]).isEqualTo((short) 1);
+
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Test
+    void testDisplayOneAtThreeThree() {
+        int[] memory = new int[4096];
+        memory[0x200] = 0xD015;
+        setRegister((short) 0, (short) 3);
+        setRegister((short) 1, (short) 3);
+        setIRegister((short) 0b11100000);
+
+        memory[0b11100000] = 0b00100000;
+        memory[0b11100001] = 0b01100000;
+        memory[0b11100010] = 0b00100000;
+        memory[0b11100011] = 0b00100000;
+        memory[0b11100100] = 0b01110000;
+
+
+
+        cpu.setMemory(memory);
+        cpu.executeCycle();
+        try {
+            Field displayField = cpu.getClass().getDeclaredField("display");
+            displayField.setAccessible(true);
+            short[] display = (short[]) displayField.get(cpu);
+
+
+            assertThat(display[3 + 3 * 64]).isEqualTo((short) 0);
+            assertThat(display[4 + 3 * 64]).isEqualTo((short) 0);
+            assertThat(display[5 + 3 * 64]).isEqualTo((short) 1);
+            assertThat(display[6 + 3 * 64]).isEqualTo((short) 0);
+
+            assertThat(display[3 + 4 * 64]).isEqualTo((short) 0);
+            assertThat(display[4 + 4 * 64]).isEqualTo((short) 1);
+            assertThat(display[5 + 4 * 64]).isEqualTo((short) 1);
+            assertThat(display[6 + 4 * 64]).isEqualTo((short) 0);
+
+            assertThat(display[3 + 5 * 64]).isEqualTo((short) 0);
+            assertThat(display[4 + 5 * 64]).isEqualTo((short) 0);
+            assertThat(display[5 + 5 * 64]).isEqualTo((short) 1);
+            assertThat(display[6 + 5 * 64]).isEqualTo((short) 0);
+
+            assertThat(display[3 + 6 * 64]).isEqualTo((short) 0);
+            assertThat(display[4 + 6 * 64]).isEqualTo((short) 0);
+            assertThat(display[5 + 6 * 64]).isEqualTo((short) 1);
+            assertThat(display[6 + 6 * 64]).isEqualTo((short) 0);
+
+            assertThat(display[3 + 7 * 64]).isEqualTo((short) 0);
+            assertThat(display[4 + 7 * 64]).isEqualTo((short) 1);
+            assertThat(display[5 + 7 * 64]).isEqualTo((short) 1);
+            assertThat(display[6 + 7 * 64]).isEqualTo((short) 1);
+
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
+    void setRegister(short register, short value) {
+        try {
+            Field registerField = cpu.getClass().getDeclaredField("register");
+            registerField.setAccessible(true);
+            short[] registerArray = (short[]) registerField.get(cpu);
+            registerArray[register] = value;
+
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    void setIRegister(short value) {
+        try {
+            Field iRegisterField = cpu.getClass().getDeclaredField("I");
+            iRegisterField.setAccessible(true);
+            short iRegister = (short) iRegisterField.get(cpu);
+            iRegister = value;
+            iRegisterField.set(cpu, iRegister);
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        }
+    }
 }

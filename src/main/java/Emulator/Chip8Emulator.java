@@ -22,11 +22,12 @@ public class Chip8Emulator implements Emulator {
     private static final short DISPLAY_HEIGHT = 32;
     private static final short DISPLAY_SIZE = DISPLAY_WIDTH * DISPLAY_HEIGHT;
     private static final short START_FONT_SET_LOCATION = 0x000;
+    private static final byte NUMBER_REGISTERS = 16;
 
     //Chip-8 has 16 general purpose 8-bit registers, usually referred to as Vx, where x is a hexadecimal digit (0 through F).
     // There is also a 16-bit register called I. This register is generally used to store memory addresses,
     // so only the lowest (rightmost) 12 bits are usually used.
-    private short V0, V1, V2, V3, V4, V5, V6, V7, V8, V9, VA, VB, VC, VD, VE, VF;
+    private short[] register;
     private short I;
 
     //There are also some "pseudo-registers" which are not accessable from Chip-8 programs.
@@ -95,6 +96,7 @@ public class Chip8Emulator implements Emulator {
         this.memory = new int[FOUR_KB];
         this.display = new short[DISPLAY_SIZE];
         this.keyboard = new byte[KEYBOARD_SIZE];
+        this.register = new short[NUMBER_REGISTERS];
         fillKeyboard();
         loadFontsIntoMemory();
 
@@ -172,7 +174,7 @@ public class Chip8Emulator implements Emulator {
             case SET_VX_TO_VALUE:
                 register = (short) (instructionBits >> 8);
                 value = (short) (instructionBits & 0x0FF);
-                setRegister(register, value);
+                this.register[register] = value;
                 break;
             case STORE_TO_VX_FROM_VY_SET_OR_AND_XOR:
                 register = (short) (instructionBits >> 8);
@@ -191,13 +193,13 @@ public class Chip8Emulator implements Emulator {
                 final short SHL = 0xE;
 
                 if (mode == SET) {
-                    setRegisterYtoX(register, register2);
+                    this.register[register] = this.register[register2];
                 } else if (mode == OR) {
                     registerOR(register, register2);
                 } else if (mode == AND) {
                     registerAND(register, register2);
                 } else if (mode == XOR) {
-                    registerOR(register, register2);
+                    registerXOR(register, register2);
                 } else if (mode == SUB) {
                     registerSUBWithCarry(register, register2);
                 } else if (mode == ADD) {
@@ -205,8 +207,7 @@ public class Chip8Emulator implements Emulator {
                 } else if (mode == SHR) {
                     registerSHR(register);
                 } else if (mode == SUBN) {
-                    throw new UnsupportedOperationException("SUBN NOT IMPLEMENTED");
-                    //registerSUBNWithCarry(register, register2);
+                    registerSUBNWithCarry(register, register2);
                 } else if (mode == SHL) {
                     registerSHL(register);
                 } else {
@@ -216,283 +217,206 @@ public class Chip8Emulator implements Emulator {
             case SKIP_IF_VX_EQUALS_NN:
                 register = (short) (instructionBits >> 8);
                 value = (short) (instructionBits & 0x0FF);
-                if (getValueOfRegister(register) == value) {
+                if (this.register[register] == value) {
                     incrementProgramCounter();
                 }
                 break;
             case SKIP_IF_VX_NOT_EQUALS_NN:
                 register = (short) (instructionBits >> 8);
                 value = (short) (instructionBits & 0x0FF);
-                if (getValueOfRegister(register) != value) {
+                if (this.register[register] != value) {
                     incrementProgramCounter();
                 }
                 break;
             case SKIP_NEXT_INSTRUCTION_IF_VX_EQUALS_VY:
                 register = (short) (instructionBits >> 8);
                 register2 = (short) ((instructionBits >> 4) & 0x0F);
-                if (getValueOfRegister(register) == getValueOfRegister(register2)) {
+                if (this.register[register] == this.register[register2]) {
                     incrementProgramCounter();
                 }
                 break;
+            case DRAW_SPRITE:
+                short memLocX = (short) ((instructionBits >> 8) & 0xF);
+                short memLocY = (short) ((instructionBits >> 4) & 0x0F);
+                short xCoordinate = (short) (this.register[memLocX] % DISPLAY_WIDTH);
+                short yCoordinate = (short) (this.register[memLocY] % DISPLAY_HEIGHT);
+                short nibble = (short) (instructionBits & 0x00F);
 
-
+                drawSprite(xCoordinate, yCoordinate, nibble);
+                incrementProgramCounter();
+                break;
             default:
                 throw new UnsupportedOperationException("No supported instruction: " + instruction);
         }
 
     }
 
+    /**
+     * Dxyn - DRW Vx, Vy, nibble
+     * Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision.
+     *
+     * The interpreter reads n bytes from memory, starting at the address stored in I.
+     * These bytes are then displayed as sprites on screen at coordinates (Vx, Vy).
+     * Sprites are XORed onto the existing screen. If this causes any pixels to be erased, VF is set to 1,
+     * otherwise it is set to 0. If the sprite is positioned so part of it is outside the coordinates of the display,
+     * it wraps around to the opposite side of the screen. See instruction 8xy3 for more information on XOR, and
+     * section 2.4, Display, for more information on the Chip-8 screen and sprites.
+     * <a href="http://devernay.free.fr/hacks/chip8/C8TECH10.HTM#2.1">See here</a>
+     * <a href="https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#dxyn-display">chip-8-display</a>
+     */
+    private void drawSprite(short xCoordinate, short yCoordinate, short height) {
+        this.register[0xF] = 0;
+
+        for (int row = 0; row < height; row++) {
+
+            // sprite is hex-encoded. 0xF0 => 11110000 would result in drawing 4 pixels => ****
+            // 0xA0 => 10100000 would result in drawing 2 pixels => * *
+            short sprite = (short) this.memory[I + row];
+
+            for (int col = 0; col < 8; col++) {
+
+                // get the pixel at the recent col position
+                short pixel = (short) ((sprite >> (7 - col)) & 0x1);
+
+                short x = (short) (xCoordinate + col);
+                short y = (short) (yCoordinate + row);
+
+                // x goes out of bounds of the display
+                if (x >= DISPLAY_WIDTH) {
+                    continue;
+                }
+
+                // y goes out of bounds of the display
+                if (y >= DISPLAY_HEIGHT) {
+                    continue;
+                }
+
+                if (pixel == 1) {
+                    if (this.display[x + y * DISPLAY_WIDTH] == 1) {
+                        this.register[0xF] = 1;
+                        this.display[x + y * DISPLAY_WIDTH] = 0;
+                    } else {
+                        this.display[x + y * DISPLAY_WIDTH] = pixel;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 8xy6 - SHR Vx {, Vy}
+     * Set Vx = Vx SHR 1.
+     * <p>
+     * If the least-significant bit of Vx is 1, then VF is set to 1, otherwise 0. Then Vx is divided by 2.
+     */
     private void registerSHR(short register) {
         final short LSB = 0x1;
-        short value = getValueOfRegister(register);
+        short value = this.register[register];
         if ((value & LSB) == 1) {
-            VF = 1;
+            this.register[0xF] = 1;
         } else {
-            VF = 0;
+            this.register[0xF] = 0;
         }
 
 
         // 1000 >> 1 = 0100 => 8 >> 1 = 4
-        setRegister(register, (short) (value >> 1));
+        this.register[register] = (short) (value >> 1);
     }
 
+    /**
+     * 8xy7 - SUBN Vx, Vy
+     * Set Vx = Vy - Vx, set VF = NOT borrow.
+     * If Vy > Vx, then VF is set to 1, otherwise 0. Then Vx is subtracted from Vy, and the results stored in Vx.
+     */
     private void registerSUBNWithCarry(short register, short register2) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        if (this.register[register2] > this.register[register]) {
+            this.register[0xF] = 1;
+        } else {
+            this.register[0xF] = 0;
+        }
+        this.register[register] = (short) (this.register[register2] - this.register[register]);
     }
 
+
+    /**
+     * 8xyE - SHL Vx {, Vy}
+     * Set Vx = Vx SHL 1.
+     * If the most-significant bit of Vx is 1, then VF is set to 1, otherwise to 0. Then Vx is multiplied by 2.
+     */
     private void registerSHL(short register) {
         final short MSB = 0x80;
-        short value = getValueOfRegister(register);
+        short value = this.register[register];
 
-        short t = (short) (value & MSB);
         if ((value & MSB) == MSB) {
-            VF = 1;
+            this.register[0xF] = 1;
         } else {
-            VF = 0;
+            this.register[0xF] = 0;
         }
 
         // 0000 1000 << 1 = 0001 0000 => 8 << 1 = 16
-        setRegister(register, (short) (value << 2));
+        this.register[register] = (short) (value << 1);
     }
 
+    /**
+     * 8xy4 - ADD Vx, Vy
+     * Set Vx = Vx + Vy, set VF = carry.
+     * The values of Vx and Vy are added together. If the result is greater than 8 bits (i.e., > 255,) VF is set to 1,
+     * otherwise 0. Only the lowest 8 bits of the result are kept, and stored in Vx.
+     */
     private void registerADDWithCarry(short register1, short register2) {
         assert register1 >= 0 && register1 <= 0xF;
         assert register2 >= 0 && register2 <= 0xF;
-        short value = (short) (getValueOfRegister(register1) + getValueOfRegister(register2));
+        short value = (short) (this.register[register1] + this.register[register2]);
 
         // Set carry flag
         if (value > 0xFF) {
-            VF = 1;
+            this.register[0xF] = 1;
             value = (short) (value & 0xFF);
         } else {
-            VF = 0;
+            this.register[0xF] = 0;
         }
-        setRegister(register1, value);
+        this.register[register1] = value;
     }
 
+    /**
+     * 8xy5 - SUB Vx, Vy
+     * Set Vx = Vx - Vy, set VF = NOT borrow.
+     * If Vx > Vy, then VF is set to 1, otherwise 0. Then Vy is subtracted from Vx, and the results stored in Vx.
+     */
     private void registerSUBWithCarry(short register1, short register2) {
         assert register1 >= 0 && register1 <= 0xF;
         assert register2 >= 0 && register2 <= 0xF;
-        short value = (short) (getValueOfRegister(register1) - getValueOfRegister(register2));
+        short value = (short) (this.register[register1] - this.register[register2]);
 
         // Set carry flag
         if (value < 0) {
-            VF = 0;
+            this.register[0xF] = 0;
             value = (short) (value & 0xFF);
         } else {
-            VF = 1;
+            this.register[0xF] = 1;
         }
-        setRegister(register1, value);
+        this.register[register1] = value;
     }
-
-
 
     private void incrementProgramCounter() {
         PC += 2;
     }
 
     private void registerOR(short register, short register2) {
-        assert register >= 0 && register <= 0xF;
-        assert register2 >= 0 && register2 <= 0xF;
-        switch (register) {
-            case 0 -> V0 = (short) (V0 | getValueOfRegister(register2));
-            case 1 -> V1 = (short) (V1 | getValueOfRegister(register2));
-            case 2 -> V2 = (short) (V2 | getValueOfRegister(register2));
-            case 3 -> V3 = (short) (V3 | getValueOfRegister(register2));
-            case 4 -> V4 = (short) (V4 | getValueOfRegister(register2));
-            case 5 -> V5 = (short) (V5 | getValueOfRegister(register2));
-            case 6 -> V6 = (short) (V6 | getValueOfRegister(register2));
-            case 7 -> V7 = (short) (V7 | getValueOfRegister(register2));
-            case 8 -> V8 = (short) (V8 | getValueOfRegister(register2));
-            case 9 -> V9 = (short) (V9 | getValueOfRegister(register2));
-            case 0xA -> VA = (short) (VA | getValueOfRegister(register2));
-            case 0xB -> VB = (short) (VB | getValueOfRegister(register2));
-            case 0xC -> VC = (short) (VC | getValueOfRegister(register2));
-            case 0xD -> VD = (short) (VD | getValueOfRegister(register2));
-            case 0xE -> VE = (short) (VE | getValueOfRegister(register2));
-            case 0xF -> VF = (short) (VF | getValueOfRegister(register2));
-        }
+        this.register[register] = (short) (this.register[register] | this.register[register2]);
     }
 
     private void registerAND(short register, short register2) {
-        assert register >= 0 && register <= 0xF;
-        assert register2 >= 0 && register2 <= 0xF;
-        switch (register) {
-            case 0 -> V0 = (short) (V0 & getValueOfRegister(register2));
-            case 1 -> V1 = (short) (V1 & getValueOfRegister(register2));
-            case 2 -> V2 = (short) (V2 & getValueOfRegister(register2));
-            case 3 -> V3 = (short) (V3 & getValueOfRegister(register2));
-            case 4 -> V4 = (short) (V4 & getValueOfRegister(register2));
-            case 5 -> V5 = (short) (V5 & getValueOfRegister(register2));
-            case 6 -> V6 = (short) (V6 & getValueOfRegister(register2));
-            case 7 -> V7 = (short) (V7 & getValueOfRegister(register2));
-            case 8 -> V8 = (short) (V8 & getValueOfRegister(register2));
-            case 9 -> V9 = (short) (V9 & getValueOfRegister(register2));
-            case 0xA -> VA = (short) (VA & getValueOfRegister(register2));
-            case 0xB -> VB = (short) (VB & getValueOfRegister(register2));
-            case 0xC -> VC = (short) (VC & getValueOfRegister(register2));
-            case 0xD -> VD = (short) (VD & getValueOfRegister(register2));
-            case 0xE -> VE = (short) (VE & getValueOfRegister(register2));
-            case 0xF -> VF = (short) (VF & getValueOfRegister(register2));
-            default -> throw new UnsupportedOperationException("No supported register: " + register);
-        }
-
+        this.register[register] = (short) (this.register[register] & this.register[register2]);
     }
 
     private void registerXOR(short register, short register2) {
-        assert register >= 0 && register <= 0xF;
-        assert register2 >= 0 && register2 <= 0xF;
-        switch (register) {
-            case 0 -> V0 = (short) (V0 ^ getValueOfRegister(register2));
-            case 1 -> V1 = (short) (V1 ^ getValueOfRegister(register2));
-            case 2 -> V2 = (short) (V2 ^ getValueOfRegister(register2));
-            case 3 -> V3 = (short) (V3 ^ getValueOfRegister(register2));
-            case 4 -> V4 = (short) (V4 ^ getValueOfRegister(register2));
-            case 5 -> V5 = (short) (V5 ^ getValueOfRegister(register2));
-            case 6 -> V6 = (short) (V6 ^ getValueOfRegister(register2));
-            case 7 -> V7 = (short) (V7 ^ getValueOfRegister(register2));
-            case 8 -> V8 = (short) (V8 ^ getValueOfRegister(register2));
-            case 9 -> V9 = (short) (V9 ^ getValueOfRegister(register2));
-            case 0xA -> VA = (short) (VA ^ getValueOfRegister(register2));
-            case 0xB -> VB = (short) (VB ^ getValueOfRegister(register2));
-            case 0xC -> VC = (short) (VC ^ getValueOfRegister(register2));
-            case 0xD -> VD = (short) (VD ^ getValueOfRegister(register2));
-            case 0xE -> VE = (short) (VE ^ getValueOfRegister(register2));
-            case 0xF -> VF = (short) (VF ^ getValueOfRegister(register2));
-            default -> throw new UnsupportedOperationException("No supported register: " + register);
-        }
+        this.register[register] = (short) (this.register[register] ^ this.register[register2]);
     }
 
     private void addToRegister(short register, short value) {
-        assert register >= 0 && register <= 0xF;
-        assert value < 256;
-        switch (register) {
-            case 0 -> V0 = (short) (V0 + value);
-            case 1 -> V1 = (short) (V1 + value);
-            case 2 -> V2 = (short) (V2 + value);
-            case 3 -> V3 = (short) (V3 + value);
-            case 4 -> V4 = (short) (V4 + value);
-            case 5 -> V5 = (short) (V5 + value);
-            case 6 -> V6 = (short) (V6 + value);
-            case 7 -> V7 = (short) (V7 + value);
-            case 8 -> V8 = (short) (V8 + value);
-            case 9 -> V9 = (short) (V9 + value);
-            case 0xA -> VA = (short) (VA + value);
-            case 0xB -> VB = (short) (VB + value);
-            case 0xC -> VC = (short) (VC + value);
-            case 0xD -> VD = (short) (VD + value);
-            case 0xE -> VE = (short) (VE + value);
-            case 0xF -> VF = (short) (VF + value);
-            default ->
-                    throw new UnsupportedOperationException("Invalid register addition:" + register + " with value " + value);
-        }
+        this.register[register] += value;
     }
-
-    private void setRegister(short register, short value) {
-        assert register >= 0 && register <= 0xF;
-        assert value < 256;
-        switch (register) {
-            case 0 -> V0 = value;
-            case 1 -> V1 = value;
-            case 2 -> V2 = value;
-            case 3 -> V3 = value;
-            case 4 -> V4 = value;
-            case 5 -> V5 = value;
-            case 6 -> V6 = value;
-            case 7 -> V7 = value;
-            case 8 -> V8 = value;
-            case 9 -> V9 = value;
-            case 0xA -> VA = value;
-            case 0xB -> VB = value;
-            case 0xC -> VC = value;
-            case 0xD -> VD = value;
-            case 0xE -> VE = value;
-            case 0xF -> VF = value;
-            default ->
-                    throw new UnsupportedOperationException("Invalid register set:" + register + " with value " + value);
-        }
-    }
-
-    private void setRegisterYtoX(short x, short y) {
-        short valueOfY = getValueOfRegister(y);
-        setRegister(x, valueOfY);
-    }
-
-    private short getValueOfRegister(short register) {
-        assert register >= 0 && register <= 0xF;
-        switch (register) {
-            case 0 -> {
-                return V0;
-            }
-            case 1 -> {
-                return V1;
-            }
-            case 2 -> {
-                return V2;
-            }
-            case 3 -> {
-                return V3;
-            }
-            case 4 -> {
-                return V4;
-            }
-            case 5 -> {
-                return V5;
-            }
-            case 6 -> {
-                return V6;
-            }
-            case 7 -> {
-                return V7;
-            }
-            case 8 -> {
-                return V8;
-            }
-            case 9 -> {
-                return V9;
-            }
-            case 0xA -> {
-                return VA;
-            }
-            case 0xB -> {
-                return VB;
-            }
-            case 0xC -> {
-                return VC;
-            }
-            case 0xD -> {
-                return VD;
-            }
-            case 0xE -> {
-                return VE;
-            }
-            case 0xF -> {
-                return VF;
-            }
-            default -> throw new UnsupportedOperationException("Invalid register set:" + register);
-        }
-    }
-
 
     @Override
     public void executeCycles(int n) {
