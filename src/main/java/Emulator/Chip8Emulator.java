@@ -1,6 +1,7 @@
 package Emulator;
 
 import java.util.Arrays;
+import java.util.Random;
 
 /**
  * <a href="http://devernay.free.fr/hacks/chip8/C8TECH10.HTM#memmap">Link to Documentation</a>
@@ -111,139 +112,85 @@ public class Chip8Emulator implements Emulator {
     }
 
     private void fillKeyboard() {
-        this.keyboard[0] = 1;
-        this.keyboard[1] = 2;
-        this.keyboard[2] = 3;
-        this.keyboard[3] = 0xC;
-        this.keyboard[4] = 4;
-        this.keyboard[5] = 5;
-        this.keyboard[6] = 6;
-        this.keyboard[7] = 0xD;
-        this.keyboard[8] = 7;
-        this.keyboard[9] = 8;
-        this.keyboard[10] = 9;
-        this.keyboard[11] = 0xE;
-        this.keyboard[12] = 0xA;
+        this.keyboard[0] = 0;
+        this.keyboard[1] = 0;
+        this.keyboard[2] = 0;
+        this.keyboard[3] = 0;
+        this.keyboard[4] = 0;
+        this.keyboard[5] = 0;
+        this.keyboard[6] = 0;
+        this.keyboard[7] = 0;
+        this.keyboard[8] = 0;
+        this.keyboard[9] = 0;
+        this.keyboard[10] = 0;
+        this.keyboard[11] = 0;
+        this.keyboard[12] = 0;
         this.keyboard[13] = 0;
-        this.keyboard[14] = 0xB;
-        this.keyboard[15] = 0xF;
+        this.keyboard[14] = 0;
+        this.keyboard[15] = 0;
     }
 
     @Override
     public void executeCycle() {
         int instruction = memory[PC];
-        byte opcode = (byte) (instruction >> 12);
-        short instructionBits = (short) (instruction & 0x0FFF);
+        int instruction2 = memory[PC + 1];
+        byte opcode = (byte) (instruction >> 4);
 
         //Register may be used
-        short register = 0x0;
-        short value = 0x0;
+        short VX = (short) (instruction & 0x0F);
+        short VY = (short) (instruction2 >> 4);
+        short NNN = (short) (VX << 8 | instruction2);
+        short kk = (short) instruction2;
+        short last4Bits = (short) (instruction2 & 0x0F);
 
         switch (opcode) {
             case JP_ADDR:
-                PC = instructionBits;
                 break;
             case CALL_ADDR:
-                stack[SP] = PC;
-                SP++;
-                PC = instructionBits;
                 break;
             case ZERO_INSTRUCTION:
-                if (instruction == CLEAR_DISPLAY) {
-                    throw new UnsupportedOperationException("DISPLAY NOT IMPLEMENTED");
-                    //resetDisplay();
-                } else if (instruction == RETURN) {
-                    PC = stack[SP];
-                    SP--;
-                } else {
-                    /**
-                     * 0nnn - SYS addr
-                     * Jump to a machine code routine at nnn.
-                     *
-                     * This instruction is only used on the old computers on which Chip-8 was originally implemented.
-                     * It is ignored by modern interpreters.
-                     */
-                    throw new UnsupportedOperationException("No supported instruction: " + instruction);
+                switch (instruction2) {
+                    case CLEAR_DISPLAY:
+                        resetDisplay();
+                        break;
+                    case RETURN:
+                        throw new UnsupportedOperationException("Return not supported");
+                    default:
+                        throw new UnsupportedOperationException("No supported instruction: " + instruction);
                 }
+                incrementProgramCounter();
                 break;
             case ADD_VALUE_TO_VS:
-                register = (short) (instructionBits >> 8);
-                value = (short) (instructionBits & 0x0FF);
-                addToRegister(register, value);
                 break;
             case SET_VX_TO_VALUE:
-                register = (short) (instructionBits >> 8);
-                value = (short) (instructionBits & 0x0FF);
-                this.register[register] = value;
+                this.register[VX] = kk;
+                incrementProgramCounter();
                 break;
             case STORE_TO_VX_FROM_VY_SET_OR_AND_XOR:
-                register = (short) (instructionBits >> 8);
-                short register2 = (short) ((instructionBits >> 4) & 0x0F);
-                short mode = (short) (instructionBits & 0x0F); // TODO last 4 bits different operation
-
-                // All 0x8XYZ modes, where 0 <= Z <= 0x3, X and Y are registers
-                final short SET = 0x0;
-                final short OR = 0x1;
-                final short AND = 0x2;
-                final short XOR = 0x3;
-                final short ADD = 0x4;
-                final short SUB = 0x5;
-                final short SHR = 0x6;
-                final short SUBN = 0x7;
-                final short SHL = 0xE;
-
-                if (mode == SET) {
-                    this.register[register] = this.register[register2];
-                } else if (mode == OR) {
-                    registerOR(register, register2);
-                } else if (mode == AND) {
-                    registerAND(register, register2);
-                } else if (mode == XOR) {
-                    registerXOR(register, register2);
-                } else if (mode == SUB) {
-                    registerSUBWithCarry(register, register2);
-                } else if (mode == ADD) {
-                    registerADDWithCarry(register, register2);
-                } else if (mode == SHR) {
-                    registerSHR(register);
-                } else if (mode == SUBN) {
-                    registerSUBNWithCarry(register, register2);
-                } else if (mode == SHL) {
-                    registerSHL(register);
-                } else {
-                    throw new UnsupportedOperationException("No supported instruction: " + instruction);
-                }
                 break;
             case SKIP_IF_VX_EQUALS_NN:
-                register = (short) (instructionBits >> 8);
-                value = (short) (instructionBits & 0x0FF);
-                if (this.register[register] == value) {
-                    incrementProgramCounter();
-                }
                 break;
             case SKIP_IF_VX_NOT_EQUALS_NN:
-                register = (short) (instructionBits >> 8);
-                value = (short) (instructionBits & 0x0FF);
-                if (this.register[register] != value) {
-                    incrementProgramCounter();
-                }
                 break;
             case SKIP_NEXT_INSTRUCTION_IF_VX_EQUALS_VY:
-                register = (short) (instructionBits >> 8);
-                register2 = (short) ((instructionBits >> 4) & 0x0F);
-                if (this.register[register] == this.register[register2]) {
-                    incrementProgramCounter();
-                }
                 break;
             case DRAW_SPRITE:
-                short memLocX = (short) ((instructionBits >> 8) & 0xF);
-                short memLocY = (short) ((instructionBits >> 4) & 0x0F);
-                short xCoordinate = (short) (this.register[memLocX] % DISPLAY_WIDTH);
-                short yCoordinate = (short) (this.register[memLocY] % DISPLAY_HEIGHT);
-                short nibble = (short) (instructionBits & 0x00F);
-
-                drawSprite(xCoordinate, yCoordinate, nibble);
+                drawSprite(this.register[VX], this.register[VY], last4Bits);
                 incrementProgramCounter();
+                break;
+            case SKIP_NEXT_INSTRUCTION:
+                break;
+            case SET_I_TO_ADDR:
+                this.I = NNN;
+                incrementProgramCounter();
+                break;
+            case JUMP_TO_ADDR_PLUS_V0:
+                break;
+            case RANDOM_BYTE_AND_KK:
+
+                break;
+            case SKIP_IF_KEY_PRESSED:
+
                 break;
             default:
                 throw new UnsupportedOperationException("No supported instruction: " + instruction);
@@ -254,7 +201,7 @@ public class Chip8Emulator implements Emulator {
     /**
      * Dxyn - DRW Vx, Vy, nibble
      * Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision.
-     *
+     * <p>
      * The interpreter reads n bytes from memory, starting at the address stored in I.
      * These bytes are then displayed as sprites on screen at coordinates (Vx, Vy).
      * Sprites are XORed onto the existing screen. If this causes any pixels to be erased, VF is set to 1,
@@ -438,12 +385,11 @@ public class Chip8Emulator implements Emulator {
             for (int j = 0; j < DISPLAY_WIDTH; j++) {
                 boolean isOn = display[j + i * DISPLAY_WIDTH] == 1;
                 if (isOn) {
-                    sb.append("0");
+                    sb.append("X");
                 } else {
-                    sb.append("*");
+                    sb.append(".");
                 }
             }
-            sb.append(i);
             sb.append("\n");
         }
         sb.delete(sb.length() - 1, sb.length());

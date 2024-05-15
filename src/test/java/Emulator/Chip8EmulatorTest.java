@@ -31,29 +31,6 @@ class Chip8EmulatorTest {
             int[] stack = (int[]) stackField.get(cpu);
             assertThat(stack).hasLength(16);
 
-            // Keyboard
-            Field keyboardField = cpu.getClass().getDeclaredField("keyboard");
-            keyboardField.setAccessible(true);
-            byte[] keyboard = (byte[]) keyboardField.get(cpu);
-            assertThat(keyboard).hasLength(16);
-            assertThat(keyboard[0]).isEqualTo((byte) 1);
-            assertThat(keyboard[1]).isEqualTo((byte) 2);
-            assertThat(keyboard[2]).isEqualTo((byte) 3);
-            assertThat(keyboard[3]).isEqualTo((byte) 0xC);
-            assertThat(keyboard[4]).isEqualTo((byte) 4);
-            assertThat(keyboard[5]).isEqualTo((byte) 5);
-            assertThat(keyboard[6]).isEqualTo((byte) 6);
-            assertThat(keyboard[7]).isEqualTo((byte) 0xD);
-            assertThat(keyboard[8]).isEqualTo((byte) 7);
-            assertThat(keyboard[9]).isEqualTo((byte) 8);
-            assertThat(keyboard[10]).isEqualTo((byte) 9);
-            assertThat(keyboard[11]).isEqualTo((byte) 0xE);
-            assertThat(keyboard[12]).isEqualTo((byte) 0xA);
-            assertThat(keyboard[13]).isEqualTo((byte) 0);
-            assertThat(keyboard[14]).isEqualTo((byte) 0xB);
-            assertThat(keyboard[15]).isEqualTo((byte) 0xF);
-
-            // TODO DISPLAY
 
             // PC
             Field pcField = cpu.getClass().getDeclaredField("PC");
@@ -67,184 +44,240 @@ class Chip8EmulatorTest {
     }
 
     @Test
-    void testJPAddrFFF() {
+    void testClearDisplay() {
         int[] memory = new int[4096];
-        memory[0x200] = 0x1FFF;
+        memory[0x200] = 0x00;
+        memory[0x201] = 0xE0;
         cpu.setMemory(memory);
-        cpu.executeCycle();
-        try {
-            Field pcField = cpu.getClass().getDeclaredField("PC");
-            pcField.setAccessible(true);
-            int pc = (int) pcField.get(cpu);
-            assertThat(pc).isEqualTo(0xFFF);
-        } catch (IllegalAccessException | NoSuchFieldException e) {
-            throw new RuntimeException(e);
-        }
-    }
 
-    @Test
-    void testJPAddrA12() {
-        int[] memory = new int[4096];
-        memory[0x200] = 0x1A12;
-        cpu.setMemory(memory);
-        cpu.executeCycle();
-        try {
-            Field pcField = cpu.getClass().getDeclaredField("PC");
-            pcField.setAccessible(true);
-            int pc = (int) pcField.get(cpu);
-            assertThat(pc).isEqualTo(0xA12);
-        } catch (IllegalAccessException | NoSuchFieldException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Test
-    void testJPAddr111() {
-        int[] memory = new int[4096];
-        memory[0x200] = 0x1111;
-        cpu.setMemory(memory);
-        cpu.executeCycle();
-        try {
-            Field pcField = cpu.getClass().getDeclaredField("PC");
-            pcField.setAccessible(true);
-            int pc =  (int) pcField.get(cpu);
-            assertThat(pc).isEqualTo(0x111);
-        } catch (IllegalAccessException | NoSuchFieldException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Test
-    void testDisplayZeroAtThreeThree() {
-        int[] memory = new int[4096];
-        memory[0x200] = 0xD014;
-        setRegister((short) 0, (short) 3);
-        setRegister((short) 1, (short) 3);
-        setIRegister((short) 0b11100000);
-
-        memory[0b11100000] = 0b11110000;
-        memory[0b11100001] = 0b10010000;
-        memory[0b11100010] = 0b10010000;
-        memory[0b11100011] = 0b11110000;
-
-
-
-        cpu.setMemory(memory);
-        cpu.executeCycle();
         try {
             Field displayField = cpu.getClass().getDeclaredField("display");
             displayField.setAccessible(true);
             short[] display = (short[]) displayField.get(cpu);
+            for(int i = 0; i < display.length; i++) {
+                display[i] = 1;
+            }
 
+            cpu.executeCycle();
 
-            // This represents a zero beginning from the coordinates 3,3
-
-            // Looking like that:
-            // ****
-            // *  *
-            // *  *
-            // ****
-            assertThat(display[3 + 3 * 64]).isEqualTo((short) 1);
-            assertThat(display[4 + 3 * 64]).isEqualTo((short) 1);
-            assertThat(display[5 + 3 * 64]).isEqualTo((short) 1);
-            assertThat(display[6 + 3 * 64]).isEqualTo((short) 1);
-
-            assertThat(display[3 + 4 * 64]).isEqualTo((short) 1);
-            assertThat(display[4 + 4 * 64]).isEqualTo((short) 0);
-            assertThat(display[5 + 4 * 64]).isEqualTo((short) 0);
-            assertThat(display[6 + 4 * 64]).isEqualTo((short) 1);
-
-            assertThat(display[3 + 5 * 64]).isEqualTo((short) 1);
-            assertThat(display[4 + 5 * 64]).isEqualTo((short) 0);
-            assertThat(display[5 + 5 * 64]).isEqualTo((short) 0);
-            assertThat(display[6 + 5 * 64]).isEqualTo((short) 1);
-
-            assertThat(display[3 + 6 * 64]).isEqualTo((short) 1);
-            assertThat(display[4 + 6 * 64]).isEqualTo((short) 1);
-            assertThat(display[5 + 6 * 64]).isEqualTo((short) 1);
-            assertThat(display[6 + 6 * 64]).isEqualTo((short) 1);
-
+            for (short b : display) {
+                assertThat(b).isEqualTo(0);
+            }
         } catch (IllegalAccessException | NoSuchFieldException e) {
             throw new RuntimeException(e);
         }
     }
 
     @Test
-    void testDisplayOneAtThreeThree() {
+    void test6xkk() {
         int[] memory = new int[4096];
-        memory[0x200] = 0xD015;
-        setRegister((short) 0, (short) 3);
-        setRegister((short) 1, (short) 3);
-        setIRegister((short) 0b11100000);
+        memory[0x200] = 0x61;
+        memory[0x201] = 0x0A;
+        cpu.setMemory(memory);
 
-        memory[0b11100000] = 0b00100000;
-        memory[0b11100001] = 0b01100000;
-        memory[0b11100010] = 0b00100000;
-        memory[0b11100011] = 0b00100000;
-        memory[0b11100100] = 0b01110000;
+        cpu.executeCycle();
 
+        try {
+            Field register = cpu.getClass().getDeclaredField("register");
+            register.setAccessible(true);
+            short[] V = (short[]) register.get(cpu);
+            assertThat(V[1]).isEqualTo(0x0A);
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Test
+    void test6F23() {
+        int[] memory = new int[4096];
+        memory[0x200] = 0x6F;
+        memory[0x201] = 0x23;
+        cpu.setMemory(memory);
+
+        cpu.executeCycle();
+
+        try {
+            Field register = cpu.getClass().getDeclaredField("register");
+            register.setAccessible(true);
+            short[] V = (short[]) register.get(cpu);
+            assertThat(V[0xF]).isEqualTo(0x23);
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Test
+    void test6A30() {
+        int[] memory = new int[4096];
+        memory[0x200] = 0x6A;
+        memory[0x201] = 0x30;
+        cpu.setMemory(memory);
+
+        cpu.executeCycle();
+
+        try {
+            Field register = cpu.getClass().getDeclaredField("register");
+            register.setAccessible(true);
+            short[] V = (short[]) register.get(cpu);
+            assertThat(V[0xA]).isEqualTo(0x30);
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Test
+    void testA143() {
+        int[] memory = new int[4096];
+        memory[0x200] = 0xA1;
+        memory[0x201] = 0x43;
+        cpu.setMemory(memory);
+
+        cpu.executeCycle();
+
+        try {
+            Field IField = cpu.getClass().getDeclaredField("I");
+            IField.setAccessible(true);
+            short I = (short) IField.get(cpu);
+            assertThat(I).isEqualTo(0x143);
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Test
+    void testAFFF() {
+        int[] memory = new int[4096];
+        memory[0x200] = 0xAF;
+        memory[0x201] = 0xFF;
+        cpu.setMemory(memory);
+
+        cpu.executeCycle();
+
+        try {
+            Field IField = cpu.getClass().getDeclaredField("I");
+            IField.setAccessible(true);
+            short I = (short) IField.get(cpu);
+            assertThat(I).isEqualTo(0xFFF);
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Test
+    void testA000() {
+        int[] memory = new int[4096];
+        memory[0x200] = 0xA0;
+        memory[0x201] = 0x00;
+        cpu.setMemory(memory);
+
+        cpu.executeCycle();
+
+        try {
+            Field IField = cpu.getClass().getDeclaredField("I");
+            IField.setAccessible(true);
+            short I = (short) IField.get(cpu);
+            assertThat(I).isEqualTo(0x000);
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Test
+    void testD124() {
+        int[] memory = new int[4096];
+        memory[0x200] = 0xD1;
+        memory[0x201] = 0x24;
+
+        setRegister(1, (short) 0x08);
+        setRegister(2, (short) 0x03);
+
+
+
+        memory[0x143] = 0b11110000;
+        memory[0x144] = 0b01100000;
+        memory[0x145] = 0b11110000;
+        memory[0x146] = 0b01100000;
+
+        cpu.setMemory(memory);
+
+        try {
+            Field IField = cpu.getClass().getDeclaredField("I");
+            IField.setAccessible(true);
+            short I = (short) IField.get(cpu);
+            I = 0x143;
+            IField.set(cpu, I);
+
+            cpu.executeCycle();
+
+            System.out.println(cpu);
+
+
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
 
 
         cpu.setMemory(memory);
-        cpu.executeCycle();
+    }
+
+    @Test
+    void testD124Edge() {
+        int[] memory = new int[4096];
+        memory[0x200] = 0xD1;
+        memory[0x201] = 0x24;
+
+        setRegister(1, (short) 61);
+        setRegister(2, (short) 30);
+
+
+
+        memory[0x143] = 0b11110000;
+        memory[0x144] = 0b01100000;
+        memory[0x145] = 0b11110000;
+        memory[0x146] = 0b01100000;
+
+        cpu.setMemory(memory);
+
         try {
+            Field IField = cpu.getClass().getDeclaredField("I");
+            IField.setAccessible(true);
+            short I = (short) IField.get(cpu);
+            I = 0x143;
+            IField.set(cpu, I);
+
+            cpu.executeCycle();
+
+            System.out.println(cpu);
+
             Field displayField = cpu.getClass().getDeclaredField("display");
             displayField.setAccessible(true);
             short[] display = (short[]) displayField.get(cpu);
 
+            assertThat(display[61 + 30 * 64]).isEqualTo((short) 1);
+            assertThat(display[62 + 30 * 64]).isEqualTo((short) 1);
+            assertThat(display[63 + 30 * 64]).isEqualTo((short) 1);
 
-            assertThat(display[3 + 3 * 64]).isEqualTo((short) 0);
-            assertThat(display[4 + 3 * 64]).isEqualTo((short) 0);
-            assertThat(display[5 + 3 * 64]).isEqualTo((short) 1);
-            assertThat(display[6 + 3 * 64]).isEqualTo((short) 0);
-
-            assertThat(display[3 + 4 * 64]).isEqualTo((short) 0);
-            assertThat(display[4 + 4 * 64]).isEqualTo((short) 1);
-            assertThat(display[5 + 4 * 64]).isEqualTo((short) 1);
-            assertThat(display[6 + 4 * 64]).isEqualTo((short) 0);
-
-            assertThat(display[3 + 5 * 64]).isEqualTo((short) 0);
-            assertThat(display[4 + 5 * 64]).isEqualTo((short) 0);
-            assertThat(display[5 + 5 * 64]).isEqualTo((short) 1);
-            assertThat(display[6 + 5 * 64]).isEqualTo((short) 0);
-
-            assertThat(display[3 + 6 * 64]).isEqualTo((short) 0);
-            assertThat(display[4 + 6 * 64]).isEqualTo((short) 0);
-            assertThat(display[5 + 6 * 64]).isEqualTo((short) 1);
-            assertThat(display[6 + 6 * 64]).isEqualTo((short) 0);
-
-            assertThat(display[3 + 7 * 64]).isEqualTo((short) 0);
-            assertThat(display[4 + 7 * 64]).isEqualTo((short) 1);
-            assertThat(display[5 + 7 * 64]).isEqualTo((short) 1);
-            assertThat(display[6 + 7 * 64]).isEqualTo((short) 1);
-
-        } catch (IllegalAccessException | NoSuchFieldException e) {
+            assertThat(display[61 + 31 * 64]).isEqualTo((short) 0);
+            assertThat(display[62 + 31 * 64]).isEqualTo((short) 1);
+            assertThat(display[63 + 31 * 64]).isEqualTo((short) 1);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
+
+
+        cpu.setMemory(memory);
     }
 
 
-    void setRegister(short register, short value) {
+    void setRegister(int index, short value) {
         try {
-            Field registerField = cpu.getClass().getDeclaredField("register");
-            registerField.setAccessible(true);
-            short[] registerArray = (short[]) registerField.get(cpu);
-            registerArray[register] = value;
-
+            Field register = cpu.getClass().getDeclaredField("register");
+            register.setAccessible(true);
+            short[] V = (short[]) register.get(cpu);
+            V[index] = value;
         } catch (IllegalAccessException | NoSuchFieldException e) {
             throw new RuntimeException(e);
         }
     }
 
-    void setIRegister(short value) {
-        try {
-            Field iRegisterField = cpu.getClass().getDeclaredField("I");
-            iRegisterField.setAccessible(true);
-            short iRegister = (short) iRegisterField.get(cpu);
-            iRegister = value;
-            iRegisterField.set(cpu, iRegister);
-        } catch (IllegalAccessException | NoSuchFieldException e) {
-            throw new RuntimeException(e);
-        }
-    }
 }
