@@ -1,12 +1,18 @@
-package Emulator;
+package emulator;
 
+import util.Observable;
+import util.Observer;
+
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Random;
+import java.util.List;
 
 /**
  * <a href="http://devernay.free.fr/hacks/chip8/C8TECH10.HTM#memmap">Link to Documentation</a>
  */
-public class Chip8Emulator implements Emulator {
+public class Chip8Emulator implements Emulator, Observable {
+    // Observer
+    private List<Observer> observers = new ArrayList<>();
 
     // The Chip-8 language is capable of accessing up to 4KB (4,096 bytes) of RAM, from location 0x000 (0)
     // to 0xFFF (4095). The first 512 bytes, from 0x000 to 0x1FF,
@@ -105,6 +111,10 @@ public class Chip8Emulator implements Emulator {
         this.PC = START_LOCATION;
     }
 
+    public short[] getDisplay() {
+        return display;
+    }
+
     private void loadFontsIntoMemory() {
         for (int i = START_FONT_SET_LOCATION; i < font_set.length; i++) {
             memory[i] = font_set[i];
@@ -145,57 +155,151 @@ public class Chip8Emulator implements Emulator {
 
         switch (opcode) {
             case JP_ADDR:
+                this.PC = NNN;
                 break;
             case CALL_ADDR:
+                SP++;
+                stack[SP] = PC;
+                PC = NNN;
                 break;
             case ZERO_INSTRUCTION:
                 switch (instruction2) {
                     case CLEAR_DISPLAY:
                         resetDisplay();
+                        incrementProgramCounter();
                         break;
                     case RETURN:
-                        throw new UnsupportedOperationException("Return not supported");
+                        PC = stack[SP];
+                        SP--;
+                        incrementProgramCounter();
+                        break;
                     default:
                         throw new UnsupportedOperationException("No supported instruction: " + instruction);
                 }
-                incrementProgramCounter();
                 break;
             case ADD_VALUE_TO_VS:
+                this.register[VX] = (short) (this.register[VX] + kk);
+                incrementProgramCounter();
                 break;
             case SET_VX_TO_VALUE:
                 this.register[VX] = kk;
                 incrementProgramCounter();
                 break;
             case STORE_TO_VX_FROM_VY_SET_OR_AND_XOR:
+                // 0x8
+                switch (last4Bits) {
+                    // See 0x0 to 0xE in documentation.
+                    case 0x0:
+                        this.register[VX] = this.register[VY];
+                        break;
+                    case 0x1:
+                        this.register[VX] = (short) (this.register[VX] | this.register[VY]);
+                        break;
+                    case 0x2:
+                        this.register[VX] = (short) (this.register[VX] & this.register[VY]);
+                        break;
+                    case 0x3:
+                        this.register[VX] = (short) (this.register[VX] ^ this.register[VY]);
+                        break;
+                    case 0x4:
+                        registerADDWithCarry(VX, VY);
+                        break;
+                    case 0x5:
+                        registerSUBWithCarry(VX, VY);
+                        break;
+                    case 0x6:
+                        registerSHR(VX);
+                        break;
+                    case 0x7:
+                        registerSUBNWithCarry(VX, VY);
+                        break;
+                    case 0xE:
+                        registerSHL(VX);
+                        break;
+                    default:
+                        throw new UnsupportedOperationException("No supported instruction: " + instruction);
+                }
+                incrementProgramCounter();
                 break;
             case SKIP_IF_VX_EQUALS_NN:
+                if (this.register[VX] == kk) {
+                    incrementProgramCounter();
+                }
+                incrementProgramCounter();
                 break;
             case SKIP_IF_VX_NOT_EQUALS_NN:
+                if(this.register[VX] != kk) {
+                    incrementProgramCounter();
+                }
+                incrementProgramCounter();
                 break;
             case SKIP_NEXT_INSTRUCTION_IF_VX_EQUALS_VY:
+                if(this.register[VX] == this.register[VY]) {
+                    incrementProgramCounter();
+                }
+                incrementProgramCounter();
                 break;
             case DRAW_SPRITE:
                 drawSprite(this.register[VX], this.register[VY], last4Bits);
                 incrementProgramCounter();
                 break;
             case SKIP_NEXT_INSTRUCTION:
+                if(this.register[VX] != this.register[VX]) {
+                    incrementProgramCounter();
+                }
+                incrementProgramCounter();
                 break;
             case SET_I_TO_ADDR:
                 this.I = NNN;
                 incrementProgramCounter();
                 break;
             case JUMP_TO_ADDR_PLUS_V0:
-                break;
+                throw new UnsupportedOperationException("No supported instruction: " + instruction);
             case RANDOM_BYTE_AND_KK:
-
-                break;
+                throw new UnsupportedOperationException("No supported instruction: " + instruction);
             case SKIP_IF_KEY_PRESSED:
-
+                throw new UnsupportedOperationException("No supported instruction: " + instruction);
+            case ALL_F_INSTRUCTIONS:
+                switch (kk) {
+                    case 0x07:
+                        this.register[VX] = (short) delayTimer;
+                        break;
+                    case 0x0A:
+                        throw new UnsupportedOperationException("No supported instruction: " + instruction);
+                    case 0x15:
+                        throw new UnsupportedOperationException("No supported instruction: " + instruction);
+                    case 0x18:
+                        throw new UnsupportedOperationException("No supported instruction: " + instruction);
+                    case 0x1E:
+                        I = (short) (this.register[VX] + I);
+                        break;
+                    case 0x29:
+                        throw new UnsupportedOperationException("No supported instruction: " + instruction);
+                    case 0x33:
+                        short value = this.register[VX];
+                        memory[I] = value / 100;
+                        memory[I+1] = (value / 10) % 10;
+                        memory[I+2] = value % 10;
+                        break;
+                    case 0x55:
+                        for(int i = 0; i <= VX; i++) {
+                            memory[I + i] = this.register[i];
+                        }
+                        break;
+                    case 0x65:
+                        for(int i = 0; i<=VX; i++) {
+                            this.register[i] = (short) memory[I + i];
+                        }
+                        break;
+                    default:
+                        throw new UnsupportedOperationException("No supported instruction: " + instruction);
+                }
+                incrementProgramCounter();
                 break;
             default:
                 throw new UnsupportedOperationException("No supported instruction: " + instruction);
         }
-
+        this.notifyObservers();
     }
 
     /**
@@ -371,6 +475,7 @@ public class Chip8Emulator implements Emulator {
         while (n > 0) {
             executeCycle();
             n--;
+            this.notifyObservers();
         }
     }
 
@@ -398,5 +503,42 @@ public class Chip8Emulator implements Emulator {
 
     private void resetDisplay() {
         Arrays.fill(display, (short) 0);
+    }
+
+    @Override
+    public void addObserver(Observer observer) {
+        this.observers.add(observer);
+    }
+
+    @Override
+    public void removeObserver(Observer observer) {
+        this.observers.remove(observer);
+    }
+
+    @Override
+    public void notifyObservers() {
+        this.observers.forEach(obs -> obs.update());
+    }
+
+    public Chip8Emulator copy() {
+        Chip8Emulator emulator = new Chip8Emulator();
+        emulator.memory = this.memory.clone();
+        emulator.display = this.display.clone();
+        emulator.keyboard = this.keyboard.clone();
+        emulator.register = this.register.clone();
+        emulator.stack = this.stack.clone();
+        emulator.PC = this.PC;
+        emulator.SP = this.SP;
+        emulator.I = this.I;
+        emulator.delayTimer = this.delayTimer;
+        emulator.soundTimer = this.soundTimer;
+        for (Observer obs : this.observers) {emulator.addObserver(obs);}
+        return emulator;
+    }
+
+    public String getPCInstr() {
+        int instruction = memory[PC];
+        int instruction2 = memory[PC + 1];
+        return String.format("0x"+"%02X%02X", instruction, instruction2);
     }
 }

@@ -1,4 +1,4 @@
-package Emulator;
+package emulator;
 
 public interface Emulator {
 

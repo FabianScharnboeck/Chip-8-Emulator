@@ -1,6 +1,8 @@
-package Emulator;
+package emulator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.lang.reflect.Field;
 
@@ -37,7 +39,6 @@ class Chip8EmulatorTest {
             pcField.setAccessible(true);
             int pc = (int) pcField.get(cpu);
             assertThat(pc).isEqualTo((short) 0x200);
-
         } catch (IllegalAccessException | NoSuchFieldException e) {
             throw new RuntimeException(e);
         }
@@ -63,6 +64,7 @@ class Chip8EmulatorTest {
             for (short b : display) {
                 assertThat(b).isEqualTo(0);
             }
+            assertPCIs(0x202);
         } catch (IllegalAccessException | NoSuchFieldException e) {
             throw new RuntimeException(e);
         }
@@ -82,6 +84,7 @@ class Chip8EmulatorTest {
             register.setAccessible(true);
             short[] V = (short[]) register.get(cpu);
             assertThat(V[1]).isEqualTo(0x0A);
+            assertPCIs(0x202);
         } catch (IllegalAccessException | NoSuchFieldException e) {
             throw new RuntimeException(e);
         }
@@ -101,6 +104,7 @@ class Chip8EmulatorTest {
             register.setAccessible(true);
             short[] V = (short[]) register.get(cpu);
             assertThat(V[0xF]).isEqualTo(0x23);
+            assertPCIs(0x202);
         } catch (IllegalAccessException | NoSuchFieldException e) {
             throw new RuntimeException(e);
         }
@@ -120,6 +124,7 @@ class Chip8EmulatorTest {
             register.setAccessible(true);
             short[] V = (short[]) register.get(cpu);
             assertThat(V[0xA]).isEqualTo(0x30);
+            assertPCIs(0x202);
         } catch (IllegalAccessException | NoSuchFieldException e) {
             throw new RuntimeException(e);
         }
@@ -139,6 +144,7 @@ class Chip8EmulatorTest {
             IField.setAccessible(true);
             short I = (short) IField.get(cpu);
             assertThat(I).isEqualTo(0x143);
+            assertPCIs(0x202);
         } catch (IllegalAccessException | NoSuchFieldException e) {
             throw new RuntimeException(e);
         }
@@ -158,6 +164,7 @@ class Chip8EmulatorTest {
             IField.setAccessible(true);
             short I = (short) IField.get(cpu);
             assertThat(I).isEqualTo(0xFFF);
+            assertPCIs(0x202);
         } catch (IllegalAccessException | NoSuchFieldException e) {
             throw new RuntimeException(e);
         }
@@ -177,6 +184,7 @@ class Chip8EmulatorTest {
             IField.setAccessible(true);
             short I = (short) IField.get(cpu);
             assertThat(I).isEqualTo(0x000);
+            assertPCIs(0x202);
         } catch (IllegalAccessException | NoSuchFieldException e) {
             throw new RuntimeException(e);
         }
@@ -209,8 +217,7 @@ class Chip8EmulatorTest {
 
             cpu.executeCycle();
 
-            System.out.println(cpu);
-
+            assertPCIs(0x202);
 
         } catch (NoSuchFieldException | IllegalAccessException e) {
             throw new RuntimeException(e);
@@ -260,6 +267,8 @@ class Chip8EmulatorTest {
             assertThat(display[61 + 31 * 64]).isEqualTo((short) 0);
             assertThat(display[62 + 31 * 64]).isEqualTo((short) 1);
             assertThat(display[63 + 31 * 64]).isEqualTo((short) 1);
+
+            assertPCIs(0x202);
         } catch (NoSuchFieldException | IllegalAccessException e) {
             throw new RuntimeException(e);
         }
@@ -269,12 +278,144 @@ class Chip8EmulatorTest {
     }
 
 
-    void setRegister(int index, short value) {
+    @ParameterizedTest
+    @ValueSource(shorts = {0x200, 0x204, 0x208, 0x20C, 0xFFF, 0xFF8, 0xABC})
+    void testJP_Add(final int value) {
+        int val = 0x1000 | value;
+        int[] memory = new int[4096];
+
+        int left = val >> 8;
+        int right = val & 0x00FF;
+        memory[0x200] = left;
+        memory[0x201] = right;
+
+        cpu.setMemory(memory);
+
+
+
+        assertPCIs(0x200);
+        cpu.executeCycle();
+        assertPCIs(value);
+    }
+
+    @Test
+    void test7xNN() {
+        int[] memory = new int[4096];
+        memory[0x200] = 0x70;
+        memory[0x201] = 0x0A;
+        cpu.setMemory(memory);
+
+        setRegister(0, (short) 0x05);
+
+        cpu.executeCycle();
+
+        try {
+            Field register = cpu.getClass().getDeclaredField("register");
+            register.setAccessible(true);
+            short[] V = (short[]) register.get(cpu);
+            assertThat(V[0]).isEqualTo(0x0F);
+            assertPCIs(0x202);
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Test
+    void test7345() {
+        int[] memory = new int[4096];
+        memory[0x200] = 0x73;
+        memory[0x201] = 0x43;
+        cpu.setMemory(memory);
+
+        setRegister(3, (short) 0x1);
+
+        cpu.executeCycle();
+
+        try {
+            Field register = cpu.getClass().getDeclaredField("register");
+            register.setAccessible(true);
+            short[] V = (short[]) register.get(cpu);
+            assertThat(V[3]).isEqualTo(0x44);
+            assertPCIs(0x202);
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
+    @Test
+    void test2nnn() {
+        int[] memory = new int[4096];
+        memory[0x200] = 0x23;
+        memory[0x201] = 0x45;
+        memory[0x345] = 0x00;
+        memory[0x346] = 0xEE;
+        cpu.setMemory(memory);
+
+        try {
+
+
+            Field stackPointerField = cpu.getClass().getDeclaredField("SP");
+            stackPointerField.setAccessible(true);
+            byte stackPointer = (byte) stackPointerField.get(cpu);
+            assertThat(stackPointer).isEqualTo(0);
+            assertPCIs(0x200);
+
+            cpu.executeCycle();
+
+            stackPointer = (byte) stackPointerField.get(cpu);
+            assertPCIs(0x345);
+            assertThat(stackPointer).isEqualTo(1);
+
+            cpu.executeCycle();
+
+            assertPCIs(0x202);
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Test
+    void test8011() {
+        int[] memory = new int[4096];
+        memory[0x200] = 0x80;
+        memory[0x201] = 0x11;
+        cpu.setMemory(memory);
+
+        setRegister(0, (short) 0x0F);
+        setRegister(1, (short) 0x0A);
+
+        cpu.executeCycle();
+
+        try {
+            Field register = cpu.getClass().getDeclaredField("register");
+            register.setAccessible(true);
+            short[] V = (short[]) register.get(cpu);
+            assertThat(V[0]).isEqualTo(0x0F | 0x0A);
+            assertThat(V[1]).isEqualTo(0x0A);
+            assertPCIs(0x202);
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    void setRegister(final int index, final short value) {
         try {
             Field register = cpu.getClass().getDeclaredField("register");
             register.setAccessible(true);
             short[] V = (short[]) register.get(cpu);
             V[index] = value;
+        } catch (IllegalAccessException | NoSuchFieldException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    void assertPCIs(final int expected) {
+        try {
+            Field pcField = cpu.getClass().getDeclaredField("PC");
+            pcField.setAccessible(true);
+            int pc = (int) pcField.get(cpu);
+            assertThat(pc).isEqualTo(expected);
         } catch (IllegalAccessException | NoSuchFieldException e) {
             throw new RuntimeException(e);
         }

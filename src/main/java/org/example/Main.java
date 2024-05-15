@@ -1,6 +1,8 @@
 package org.example;
 
-import Emulator.Chip8Emulator;
+import emulator.Chip8Emulator;
+import controller.EmulatorController;
+import view.GUI;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -10,7 +12,9 @@ import java.io.IOException;
 public class Main {
     public static void main(String[] args) {
         // Read ch8 file
-        File file = new File("src/main/resources/1-chip8-logo.ch8");
+        //File file = new File("src/main/resources/1-chip8-logo.ch8");
+        //File file = new File("src/main/resources/2-ibm-logo.ch8");
+        File file = new File("src/main/resources/3-corax+.ch8");
         int[] rom = readRom(file);
         int[] memory = new int[4096];
 
@@ -21,9 +25,10 @@ public class Main {
         Chip8Emulator cpu = new Chip8Emulator();
         cpu.setMemory(memory);
 
-        cpu.executeCycles(39);
-        System.out.println(cpu);
-
+        // View constructed;
+        EmulatorController controller = new EmulatorController(cpu);
+        GUI gui = new GUI(controller);
+        cpu.addObserver(gui);
     }
 
 
